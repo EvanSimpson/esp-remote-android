@@ -11,7 +11,10 @@
     tools:context="com.evansimpson.espremoteconnect.MainActivity">
 
     <TextView
+        android:id="@+id/connection_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!" />
+        android:text="@string/remote_disconnected"
+        android:textSize="18sp"
+        android:fontFamily="sans-serif" />
 </RelativeLayout>

@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">ESPRemoteConnect</string>
+    <string name="remote_scanning">Scanning for remote...</string>
+    <string name="remote_disconnected">Remote not connected</string>
+    <string name="remote_connected">Remote connected</string>
 </resources>
