@@ -4,24 +4,37 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.os.IBinder;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.GridView;
 import android.widget.TextView;
 
-import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
+
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_ENABLE_LOCATION = 2;
     private static final long SCAN_PERIOD = 10000;
+    private static final String TAG = "ESP REMOTE DEMO";
 
     private boolean mScanning = false;
     private BluetoothAdapter mBluetoothAdapter;
@@ -79,6 +92,17 @@ public class MainActivity extends AppCompatActivity {
         mBluetoothAdapter = bluetoothManager.getAdapter();
 
         setContentView(R.layout.activity_main);
+        Button powerButton = (Button) findViewById(R.id.power_button);
+        powerButton.setVisibility(View.INVISIBLE);
+        powerButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mCodeCharacteristic != null && mBluetoothLeService != null) {
+                    mBluetoothLeService.writeCharacteristic(
+                            mCodeCharacteristic, OnkyoCodes.ONKYO_KEY_POWER);
+                }
+            }
+        });
     }
 
     @Override
@@ -138,6 +162,25 @@ public class MainActivity extends AppCompatActivity {
         scanLeDevice(true);
     }
 
+    protected void afterDiscovery() {
+        Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
+        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+        Log.d(TAG, "Attempted bindService");
+    }
+
+    protected void getWriteCharacteristic(List<BluetoothGattService> gattServices) {
+        for (BluetoothGattService gattService : gattServices) {
+            if (gattService.getUuid().equals(
+                    UUID.fromString(GattAttributes.REMOTE_SERVICE_UUID))) {
+                mCodeCharacteristic = gattService.getCharacteristic(
+                        UUID.fromString(GattAttributes.CODE_CHAR_UUID));
+            }
+        }
+        if (mCodeCharacteristic != null) {
+            showControls();
+        }
+    }
+
     protected void requestBle() {
         if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
@@ -150,17 +193,32 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void updateConnectionLabel(boolean found) {
-        TextView connectionLabel = (TextView) findViewById(R.id.connection_label);
-        if (mScanning) {
-            connectionLabel.setText(R.string.remote_scanning);
-        } else {
-            if (found) {
-                connectionLabel.setText(R.string.remote_connected);
-            } else {
-                connectionLabel.setText(R.string.remote_disconnected);
+    private void showControls() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Button powerButton = (Button) findViewById(R.id.power_button);
+                powerButton.setVisibility(View.VISIBLE);
             }
-        }
+        });
+    }
+
+    private void updateConnectionLabel(final boolean found) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                TextView connectionLabel = (TextView) findViewById(R.id.connection_label);
+                if (mScanning) {
+                    connectionLabel.setText(R.string.remote_scanning);
+                } else {
+                    if (found) {
+                        connectionLabel.setText(R.string.remote_connected);
+                    } else {
+                        connectionLabel.setText(R.string.remote_disconnected);
+                    }
+                }
+            }
+        });
     }
 
     protected void scanLeDevice(final boolean enable) {
@@ -189,16 +247,12 @@ public class MainActivity extends AppCompatActivity {
             new BluetoothAdapter.LeScanCallback() {
         @Override
         public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
-            if (device.getName() != null && device.getName().equals(deviceName)) {
-                Log.d("Device status", "device found");
-                mRemoteDevice = device;
+            if (device.getName() != null && device.getName().equals(mDeviceName) && mScanning) {
+                Log.d(TAG, "device found");
+                mDeviceAddress = device.getAddress();
                 scanLeDevice(false);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        updateConnectionLabel(true);
-                    }
-                });
+                updateConnectionLabel(true);
+                afterDiscovery();
             }
         }
     };
