@@ -3,4 +3,9 @@
     <string name="remote_scanning">Scanning for remote...</string>
     <string name="remote_disconnected">Remote not connected</string>
     <string name="remote_connected">Remote connected</string>
+    <string name="stereo_power">Stereo Power</string>
+    <string name="stereo_volume_up">Volume Up</string>
+    <string name="stereo_volume_down">Volume Down</string>
+    <string name="stereo_dvd_select">DVD</string>
+    <string name="stereo_cd_select">CD</string>
 </resources>

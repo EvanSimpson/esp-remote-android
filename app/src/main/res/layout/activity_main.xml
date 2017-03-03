@@ -17,4 +17,20 @@
         android:text="@string/remote_disconnected"
         android:textSize="18sp"
         android:fontFamily="sans-serif" />
+
+    <GridLayout
+        android:id="@+id/controls_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="123dp"
+        android:layout_below="@+id/connection_label">
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="106dp"
+            android:text="@string/stereo_power"
+            android:id="@+id/power_button" />
+    </GridLayout>
 </RelativeLayout>
