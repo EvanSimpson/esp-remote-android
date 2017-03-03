@@ -26,8 +26,49 @@ public class MainActivity extends AppCompatActivity {
     private boolean mScanning = false;
     private BluetoothAdapter mBluetoothAdapter;
     private Handler mHandler;
-    private BluetoothDevice mRemoteDevice;
-    private String deviceName = "ESP_REMOTE";
+    private String mDeviceName = "ESP_REMOTE";
+    private String mDeviceAddress;
+    private BluetoothLeService mBluetoothLeService;
+    private boolean mConnected = false;
+    private BluetoothGattCharacteristic mCodeCharacteristic;
+
+    // Code to manage Service lifecycle.
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
+            if (!mBluetoothLeService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+                finish();
+            }
+            // Automatically connects to the device upon successful start-up initialization.
+            Log.d(TAG, "Connected to service");
+            mBluetoothLeService.connect(mDeviceAddress);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+
+    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+                mConnected = true;
+                updateConnectionLabel(true);
+            } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                mConnected = false;
+                updateConnectionLabel(false);
+            } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
+                // Get all the supported services and characteristics on the user interface.
+                getWriteCharacteristic(mBluetoothLeService.getSupportedGattServices());
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +92,11 @@ public class MainActivity extends AppCompatActivity {
 
         } else {
             requestBle();
+            registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+            if (mBluetoothLeService != null) {
+                final boolean result = mBluetoothLeService.connect(mDeviceAddress);
+                Log.d(TAG, "Connect request result=" + result);
+            }
         }
     }
 
@@ -69,6 +115,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         scanLeDevice(false);
+        try {
+            unregisterReceiver(mGattUpdateReceiver);
+        } catch(IllegalArgumentException e) {}
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unbindService(mServiceConnection);
+        mBluetoothLeService = null;
     }
 
     @Override
@@ -87,7 +143,9 @@ public class MainActivity extends AppCompatActivity {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
         } else {
-            scanLeDevice(true);
+            if (mBluetoothLeService == null) {
+                scanLeDevice(true);
+            }
         }
 
     }
@@ -122,10 +180,8 @@ public class MainActivity extends AppCompatActivity {
             mBluetoothAdapter.startLeScan(mLeScanCallback);
             updateConnectionLabel(false);
         } else {
-            if (mScanning) {
-                mScanning = false;
-                mBluetoothAdapter.stopLeScan(mLeScanCallback);
-            }
+            mScanning = false;
+            mBluetoothAdapter.stopLeScan(mLeScanCallback);
         }
     };
 
@@ -146,4 +202,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
+        return intentFilter;
+    }
 }
